@@ -7,6 +7,7 @@ library(caTools)
 library(caret)
 library(randomForest)
 library(gbm)
+library(e1071)
 library(ggplot2)
 library(grid)
 library(gridExtra)
@@ -17,7 +18,7 @@ library(rpart.plot)
 library(doParallel)
 
 # =======================================================================================
-# QUESTION
+# PROJECT PROBLEM
 # =======================================================================================
 # The goal of your project is to predict the manner in which the human subject wearing the accelerometers
 # did the exercise. Accelerometers measure bodily movements.
@@ -30,7 +31,7 @@ library(doParallel)
 # You will also use your prediction model to predict 20 different test cases. 
 
 # =======================================================================================
-# INPUT DATA
+# THE DATA
 # =======================================================================================
 # The data and more information about it - source http://groupware.les.inf.puc-rio.br/har
 # Weight Lifting Exercises (WLE) Dataset 
@@ -47,7 +48,7 @@ test = read.csv("pml-testing.csv",header=T, stringsAsFactors=F, na.strings = c("
 
 
 # =======================================================================================
-# FEATURES 
+# FEATURE SELECTION 
 # Lead to Data compression
 # Retain relevant information
 # Created based on expert application knowledge
@@ -142,9 +143,26 @@ train.training.summarystats = data.frame(train.training.min,
 # sort by sd
 train.training.summarystats = train.training.summarystats[order(-train.training.sd, train.training.mean ) , ]
 
+# Use rf to dertmine input variable importance
+inVarImp = createDataPartition(y = train.training$classe, p = 0.2, list = F)
+varImpSub = train.training[inVarImp, ]
+varImpSub = subset(varImpSub[3:55])
+varImpRF = train(classe ~ ., data = varImpSub, method = "rf")
+
+varImpObj <- varImp(varImpRF)
+plot(varImpObj, main = "Variable Importance of All Vars")
+plot(varImpObj, main = "Variable Importance of Top 25 Vars", top = 25)
+
+# Remove X from train & test data frames
+train.training$X=NULL
+train.testing$X=NULL
+train.validate$X=NULL
+
+test$X=NULL
+
 
 # =======================================================================================
-# ALGORITHM - CROSS VALIDATION
+# CROSS VALIDATION 
 # =======================================================================================
 
 
@@ -166,11 +184,10 @@ preProc = c("center","scale")
 ctrl <- trainControl(method="repeatedcv",          # use repeated 10fold cross validation
                      repeats=10,                          # do 3 repititions of 10-fold cv
                      number=10)
-# Note that the default search grid selects 3 values of each tuning parameter
-#
-grid <- expand.grid(.interaction.depth = seq(1,7,by=2), # look at tree depths from 1 to 7
-                    .n.trees=seq(10,100,by=5),	        # let iterations go from 10 to 100
-                    .shrinkage=c(0.01,0.1))		# Try 2 values of the learning rate parameter
+
+# =======================================================================================
+# ALGORITHMS 
+# =======================================================================================
 
 # BOOSTED TREE MODEL										
 set.seed(123)
@@ -232,33 +249,36 @@ system.time(
 
 #-----------------------------------
 # COMPARE MODELS USING RESAPMLING
-# Having set the seed to 1 before running gbm.tune and svm.tune we have generated paired samplesfor comparing models using resampling.
+# Having set the seed to 123 before running gbm.tune and svm.tune we have generated paired samplesfor comparing models using resampling.
 #
 # The resamples function in caret collates the resampling results from the two models
-rValues1010 <- resamples(list(gbm=gbm.tune1010, rf=rf.tune1010, lvq=lvq.tune1010, svm=svm.tune1010))
+rValues1010 <- resamples(list(gbm=gbm.tune1010, rf=rf.tune1010,  svm=svm.tune1010))
 rValues1010$values
 #---------------------------------------------
 # BOXPLOTS COMPARING RESULTS
 bwplot(rValues1010,metric="Accuracy")		# boxplot
 
-# Predict
-gbm.tune.pred = predict(gbm.tune, newdata=Test, type="prob")
-gbm.tune.pred.prob = gbm.tune.pred[,2]
-
-rf.tune.pred = predict(rf.tune, newdata=Test, type="prob")
-rf.tune.pred.prob = rf.tune.pred[,2]
-
-# Visual Analysis
-
-
-
-
-
-
-# =======================================================================================
-# PARAMTERS
-# =======================================================================================
 
 # =======================================================================================
 # EVALUATION
 # =======================================================================================
+
+# PREDICITONS
+gbm.tune.pred = predict(gbm.tune1010, newdata=train.testing)
+rf.tune.pred = predict(rf.tune1010, newdata=train.testing, type="raw")
+
+# EXPECTED OUT OF SAMPLE ERROR
+# rf
+rf.tune.pred.oos = predict(rf.tune1010, newdata=train.validate, type="raw")
+missClass = function(values, rf.tune.pred.oos) {
+  sum(rf.tune.pred.oos != values)/length(values)
+}  
+rf.oos.error = missClass(train.validate$classe, rf.tune.pred.oos)
+
+# gbm
+gbm.tune.pred.oos = predict(gbm.tune1010, newdata=train.validate, type="raw")
+missClass = function(values, gbm.tune.pred.oos) {
+  sum(gbm.tune.pred.oos != values)/length(values)
+}  
+gbm.oos.error = missClass(train.validate$classe, gbm.tune.pred.oos)
+
