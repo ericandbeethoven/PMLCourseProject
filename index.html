@@ -2,7 +2,7 @@
 <html lang="en-us">
   <head>
     <meta charset="UTF-8">
-    <title>Ericandbeethoven.GitHub.io by ericandbeethoven</title>
+    <title>Course Project Writeup by ericandbeethoven</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" type="text/css" href="stylesheets/normalize.css" media="screen">
     <link href='http://fonts.googleapis.com/css?family=Open+Sans:400,700' rel='stylesheet' type='text/css'>
@@ -11,8 +11,8 @@
   </head>
   <body>
     <section class="page-header">
-      <h1 class="project-name">Ericandbeethoven.GitHub.io</h1>
-      <h2 class="project-tagline">Course Project for Coursera Practical Machine Learning</h2>
+      <h1 class="project-name">Course Project Writeup</h1>
+      <h2 class="project-tagline">Coursera Practical Machine Learning</h2>
     </section>
 
     <section class="main-content">
@@ -111,12 +111,17 @@ train.training.summarystats = train.training.summarystats[order(-train.training.
 head(train.training.summarystats)
 </code></pre>
 
-<p>magnet_forearm_y SD = 507.9857
-magnet_arm_x SD =  444.7440
-magnet_forearm_z SD = 371.8815
-magnet_forearm_x SD = 347.5065
-magnet_dumbbell_x SD = 338.4216
-magnet_arm_z SD = 326.0821</p>
+<p>magnet_forearm_y SD = 507.9857</p>
+
+<p>magnet_arm_x SD =  444.7440</p>
+
+<p>magnet_forearm_z SD = 371.8815</p>
+
+<p>magnet_forearm_x SD = 347.5065</p>
+
+<p>magnet_dumbbell_x SD = 338.4216</p>
+
+<p>magnet_arm_z SD = 326.0821</p>
 
 <p>As shown above, the final exploratory analysis showed a significant amount of variables exhibited exceptionally high variability.</p>
 
@@ -225,7 +230,7 @@ bwplot(rValues1010,metric="Accuracy")       # boxplot
 
 <p>The lvq Optimal Model Accuracy = 0.6714843 with SD =  0.02271624 in contrast. It was eliminated from further consideration.</p>
 
-<p>The predictions were then made against the train.training data frame using rf, gbm and an ensemble (gbm and rf).</p>
+<p>The predictions were then made against the train.training data frame using rf and gbm.</p>
 
 <pre><code># Predict
 gbm.tune.pred = predict(gbm.tune1010, newdata=train.testing)
@@ -251,8 +256,7 @@ sum(gbm.tune.pred.oos != values)/length(values)
 gbm.oos.error = missClass(train.validate$classe, gbm.tune.pred.oos)
 </code></pre>
 
-<p>The rf out of sample error = 1.0706%
-The gbm out of sample error = 4.4099%</p>
+<p>Based on the misclassification rate on the validation subset, an unbiased estimate of the rf out of sample error = 1.0706% and the gbm out of sample error = 4.4099%</p>
 
       <footer class="site-footer">
 
