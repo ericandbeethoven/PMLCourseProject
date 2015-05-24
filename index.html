@@ -90,8 +90,9 @@ plot(varImpObj, main = "Variable Importance of All Vars")
 plot(varImpObj, main = "Variable Importance of Top 25 Vars", top = 25)
 </code></pre>
 
-<p><a href="http://rpubs.com/ebrucecfa/82744">Variable Importance of All Vars</a>
-<a href="http://rpubs.com/ebrucecfa/82755">Variable Importance of Top 25 Vars</a></p>
+<p><a href="http://rpubs.com/ebrucecfa/82744">Variable Importance of All Vars</a></p>
+
+<p><a href="http://rpubs.com/ebrucecfa/82755">Variable Importance of Top 25 Vars</a></p>
 
 <p>The variable importance exploratory analysis showed that 20-25 variables had the dominant explanatory value.</p>
 
@@ -110,13 +111,12 @@ train.training.summarystats = train.training.summarystats[order(-train.training.
 head(train.training.summarystats)
 </code></pre>
 
-<p>feature                  train.training.min train.training.max train.training.mean train.training.sd
-magnet_forearm_y                -896               1480            385.3510          507.9857
-magnet_arm_x                    -580                780            190.8281          444.7440
-magnet_forearm_z                -973               1090            392.8455          371.8815
-magnet_forearm_x               -1280                663           -312.5898          347.5065
-magnet_dumbbell_x               -639                584           -330.0082          338.4216
-magnet_arm_z                    -595                694            306.6091          326.0821</p>
+<p>magnet_forearm_y SD = 507.9857
+magnet_arm_x SD =  444.7440
+magnet_forearm_z SD = 371.8815
+magnet_forearm_x SD = 347.5065
+magnet_dumbbell_x SD = 338.4216
+magnet_arm_z SD = 326.0821</p>
 
 <p>As shown above, the final exploratory analysis showed a significant amount of variables exhibited exceptionally high variability.</p>
 
@@ -154,14 +154,105 @@ train.validate = train.test[-inTest,]
 <li>Support Vector Machine Model (svm)</li>
 </ul>
 
+<p>The caret package train function was used to preprocess and perform the repeated cross validation.</p>
+
+<pre><code>pargs = classe ~ .
+preProc = c("center","scale")
+ctrl = trainControl(method="repeatedcv",          # use repeated 10 fold cross validation
+                 repeats=10,                          # do 10 repetitions of 10-fold cv
+                 number=10)
+
+# BOOSTED TREE GBM MODEL                                        
+set.seed(123)
+registerDoParallel(4)                               # Registrer a parallel backend for train
+getDoParWorkers()
+system.time(gbm.tune1010 &lt;- train(pargs,
+                          data = train.training,
+                          method = "gbm",
+                          trControl = ctrl,
+                          verbose=T)
+)
+
+#  Learning Vector Quantization MODEL
+set.seed(123)
+registerDoParallel(4,cores=4)
+getDoParWorkers()
+system.time(
+lvq.tune1010 &lt;- train(pargs,
+               data = train.training,
+               method = "lvq",
+               preProc = preProc,
+               trControl=ctrl)          # same as for gbm above
+)   
+
+#  Support Vector Machine SVM MODEL
+set.seed(123)
+registerDoParallel(4,cores=4)
+getDoParWorkers()
+system.time(
+svm.tune1010 &lt;- train(pargs,
+                    data = train.training,
+                    method = "svmRadial",
+                    preProc = preProc,
+                    trControl=ctrl)          # same as for gbm above
+)   
+
+# RANDOM FOREST MODEL
+set.seed(123)
+registerDoParallel(4,cores=4)
+getDoParWorkers()
+system.time(
+rf.tune1010 &lt;- train(pargs,
+               data = train.training,
+               method = "rf",
+               nodesize = 5,    
+               ntree=500,
+               preProc = preProc,
+               trControl=ctrl)          # same as for gbm above
+ )  
+</code></pre>
+
 <p>The performance metric for the comparison is Model Accuracy. From examining the boxplots of the sampling distributions for the three best models it is apparent that, in this case, the rf and gbm have the advantage.</p>
 
-<p><a href="http://rpubs.com/ebrucecfa/82645">Machine Learning Model Comparison Boxplot</a></p>
+<pre><code>rValues1010 &lt;- resamples(list(gbm=gbm.tune1010, rf=rf.tune1010,  svm=svm.tune1010))
+rValues1010$values
 
-<p>The lvq Optimal Model Accuracy = 0.7386467 with SD =  0.02004137 in contrast. It was eliminated from further consideration.</p>
+# BOXPLOTS COMPARING RESULTS
+bwplot(rValues1010,metric="Accuracy")       # boxplot
+</code></pre>
+
+<p><a href="http://rpubs.com/ebrucecfa/83177">Machine Learning Model Comparison Boxplot</a></p>
+
+<p>The lvq Optimal Model Accuracy = 0.6714843 with SD =  0.02271624 in contrast. It was eliminated from further consideration.</p>
+
+<p>The predictions were then made against the train.training data frame using rf, gbm and an ensemble (gbm and rf).</p>
+
+<pre><code># Predict
+gbm.tune.pred = predict(gbm.tune1010, newdata=train.testing)
+rf.tune.pred = predict(rf.tune1010, newdata=train.testing, type="raw")
+</code></pre>
 
 <h3>
 <a id="expected-out-of-sample-error" class="anchor" href="#expected-out-of-sample-error" aria-hidden="true"><span class="octicon octicon-link"></span></a>Expected Out of Sample Error</h3>
+
+<p>The train.validate data frame was used to calculate the expected out of sample error.</p>
+
+<pre><code># rf
+rf.tune.pred.oos = predict(rf.tune1010, newdata=train.validate, type="raw")
+missClass = function(values, rf.tune.pred.oos) {
+  sum(rf.tune.pred.oos != values)/length(values)
+}  
+rf.oos.error = missClass(train.validate$classe, rf.tune.pred.oos)
+# gbm
+gbm.tune.pred.oos = predict(gbm.tune1010, newdata=train.validate, type="raw")
+missClass = function(values, gbm.tune.pred.oos) {
+sum(gbm.tune.pred.oos != values)/length(values)
+}  
+gbm.oos.error = missClass(train.validate$classe, gbm.tune.pred.oos)
+</code></pre>
+
+<p>The rf out of sample error = 1.0706%
+The gbm out of sample error = 4.4099%</p>
 
       <footer class="site-footer">
 
