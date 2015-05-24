@@ -71,14 +71,14 @@ all$user_name = as.factor(all$user_name)
 <h3>
 <a id="feature-selection" class="anchor" href="#feature-selection" aria-hidden="true"><span class="octicon octicon-link"></span></a>Feature Selection</h3>
 
-<p>While it is best to err on over creation of features but first consider removing zero covariates.</p>
+<p>While it is best to err on over creation of features, the first step was to consider removing zero covariates.</p>
 
 <pre><code>nsv = nearZeroVar(train.training[,4:54], saveMetrics = TRUE)
 </code></pre>
 
 <p>There were no near zero covariates identified for removal.</p>
 
-<p>A Variable Importance exploratory analysis was run to gauge variable importance using a Random Forest model over a 20% split of the training data frame. The below plots illustrate the variable importance.</p>
+<p>A Variable Importance exploratory analysis was run to gauge variable importance using a Random Forest model over a 20% split of the training data frame.</p>
 
 <pre><code>inVarImp = createDataPartition(y = train.training$classe, p = 0.2, list = F)
 varImpSub = train.training[inVarImp, ]
@@ -90,7 +90,8 @@ plot(varImpObj, main = "Variable Importance of All Vars")
 plot(varImpObj, main = "Variable Importance of Top 25 Vars", top = 25)
 </code></pre>
 
-<p><a href="http://rpubs.com/ebrucecfa/82744">Variable Importance of All Vars</a></p>
+<p>The below plots illustrate the variable importance.
+<a href="http://rpubs.com/ebrucecfa/82744">Variable Importance of All Vars</a></p>
 
 <p><a href="http://rpubs.com/ebrucecfa/82755">Variable Importance of Top 25 Vars</a></p>
 
@@ -123,9 +124,9 @@ head(train.training.summarystats)
 
 <p>magnet_arm_z SD = 326.0821</p>
 
-<p>As shown above, the final exploratory analysis showed a significant amount of variables exhibited exceptionally high variability.</p>
+<p>As illustrated above, the final exploratory analysis showed a significant amount of variables exhibited exceptionally high variability.</p>
 
-<p>It was thus decided to use all remaining 54 variables.</p>
+<p>After all the feature engineering and analysis, it was decided to use all remaining 54 variables.</p>
 
 <h3>
 <a id="cross-validation" class="anchor" href="#cross-validation" aria-hidden="true"><span class="octicon octicon-link"></span></a>Cross Validation</h3>
@@ -257,6 +258,8 @@ gbm.oos.error = missClass(train.validate$classe, gbm.tune.pred.oos)
 </code></pre>
 
 <p>Based on the misclassification rate on the validation subset, an unbiased estimate of the rf out of sample error = 1.0706% and the gbm out of sample error = 4.4099%</p>
+
+<p>The rf model was used to predict on the test set since it exhibited both the highest expected Accuracy and lowest expected Out of Sample Error.</p>
 
       <footer class="site-footer">
 
