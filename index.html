@@ -19,10 +19,8 @@
       <h3>
 <a id="the-course-project-problem" class="anchor" href="#the-course-project-problem" aria-hidden="true"><span class="octicon octicon-link"></span></a>The Course Project Problem.</h3>
 
-<p>The goal of your project is to predict the manner in which the six healthy human subjects wearing accelerometers
-performing the unilateral dumbbell biceps curl weight lifting exercise. </p>
-
-<p>Accelerometers measure bodily movements.</p>
+<p>The goal of your project is to predict the manner in which six healthy human subjects wearing accelerometers
+perform the unilateral dumbbell biceps curl weight lifting exercise. </p>
 
 <p>The participants were instructed to perform the exercise in one of five different fashions:</p>
 
@@ -38,32 +36,123 @@ performing the unilateral dumbbell biceps curl weight lifting exercise. </p>
 
 <p>The project deliverables are this report describing how the model was built, how cross validation was used, what the expected out of sample error is, and why the choices for all the above were made. </p>
 
-<pre><code>$ cd your_repo_root/repo_name
-$ git fetch origin
-$ git checkout gh-pages
+<h3>
+<a id="the-data" class="anchor" href="#the-data" aria-hidden="true"><span class="octicon octicon-link"></span></a>The Data</h3>
+
+<p>The data was sourced from <a href="http://groupware.les.inf.puc-rio.br/har">this site</a>.</p>
+
+<p>The below R commands and parameters were used.</p>
+
+<pre><code>train = read.csv("pml-training.csv", header=T, stringsAsFactors=F, na.strings = c("NA", "#DIV/0!"))
+test = read.csv("pml-testing.csv",header=T, stringsAsFactors=F, na.strings = c("NA", "#DIV/0!"))
 </code></pre>
 
-<p>If you're using the GitHub for Mac, simply sync your repository and you'll see the new branch.</p>
+<h3>
+<a id="data-cleansing-and-feature-variable-selection" class="anchor" href="#data-cleansing-and-feature-variable-selection" aria-hidden="true"><span class="octicon octicon-link"></span></a>Data Cleansing and Feature Variable Selection</h3>
+
+<p>The first step was to understand the data properties and eliminate quirks or unnecessary variables that would have no explanatory value.</p>
+
+<p>The following variables were eliminated:</p>
+
+<ul>
+<li>Statistical and summary measures were derived from other variables and therefore contained no additional explanatory value.</li>
+<li>Raw and cvtd timestamps contained no additional explanatory value since other variables measured acceleration and thus contained time element.</li>
+<li>new_window &amp; num_window have no explanatory value as new_window has zero variability once the statistical and summary measures were eliminated and num_window is merely an index counter identification value.</li>
+</ul>
+
+<p>There were no missing or NA values after the above variables were eliminated so no additional data cleansing was required.</p>
+
+<p>The dependent variable 'classe' and independent variable 'user_name' were both converted to factor variables for ease of use with the caret library train function.</p>
+
+<p>The resulting 'train' data frame was 19622 obs of 55 variables. </p>
 
 <h3>
-<a id="designer-templates" class="anchor" href="#designer-templates" aria-hidden="true"><span class="octicon octicon-link"></span></a>Designer Templates</h3>
+<a id="cross-validation" class="anchor" href="#cross-validation" aria-hidden="true"><span class="octicon octicon-link"></span></a>Cross Validation</h3>
 
-<p>We've crafted some handsome templates for you to use. Go ahead and continue to layouts to browse through them. You can easily go back to edit your page before publishing. After publishing your page, you can revisit the page generator and switch to another theme. Your Page content will be preserved if it remained markdown format.</p>
+<p>The data was split into Training and Probe Testing to get an idea of out of sample error rate. I decided to use training (60%), probe test (20%) &amp; validation (20%) from data set from train. This was recommended in Week 1 Prediction study design Slide 7/8.</p>
+
+<pre><code>set.seed(123)
+inTrain = createDataPartition(y = train$classe, p = 0.6, list = FALSE)
+# 60% to training
+train.training = train[inTrain,]
+train.test = train[-inTrain,]
+
+# 20% to test and 20% to validation fromt train.test
+set.seed(123)
+inTest = createDataPartition(y = train.test$classe, p = 0.5, list = FALSE)
+train.testing = train.test[inTest,]
+train.validate = train.test[-inTest,]
+</code></pre>
+
+<p>While it is best to err on over creation of features but first consider removing zero covariates.</p>
+
+<pre><code>nsv = nearZeroVar(train.training[,4:54], saveMetrics = TRUE)
+</code></pre>
+
+<p>There were no near zero covariates identified for removal.</p>
+
+<p>An exploratory analysis was run to gauge variable importance using a Random Forest model over a 20% split of the training data frame. The below plot illustrates the variable importance.</p>
+
+<p><img src="http://rpubs.com/ebrucecfa/82744" alt=""></p>
+
+<p><img src="http://rpubs.com/ebrucecfa/82755" alt=""></p>
+
+<p>A final exploratory analysis to gauge likely best features and select best pre-processing method was performed.</p>
+
+<pre><code>train.training.mean = sapply(train.training[,4:54],mean,na.rm=1)
+train.training.min = sapply(train.training[,4:54],min,na.rm=1)
+train.training.max = sapply(train.training[,4:54],max,na.rm=1)
+train.training.sd = sapply(train.training[,4:54],sd,na.rm=1)
+train.training.summarystats = data.frame(train.training.min, 
+                                     train.training.max, 
+                                     train.training.mean,
+                                     train.training.sd)
+# sort by sd
+train.training.summarystats = train.training.summarystats[order(-train.training.sd, train.training.mean ) , ]
+
+head(train.training.summarystats)
+
+              train.training.min train.training.max train.training.mean train.training.sd
+</code></pre>
+
+<p>magnet_forearm_y                -896               1480            385.3510          507.9857
+magnet_arm_x                    -580                780            190.8281          444.7440
+magnet_forearm_z                -973               1090            392.8455          371.8815
+magnet_forearm_x               -1280                663           -312.5898          347.5065
+magnet_dumbbell_x               -639                584           -330.0082          338.4216
+magnet_arm_z                    -595                694            306.6091          326.0821</p>
+
+<p>As shown above, exploratory analysis showed a significant amount of variables exhibited exceptionally high variability.</p>
+
+<p>It was thus decided to use repeated 10-fold cross validation with 10 repetitions. This would result in less bias, but more variance in prediction. A Center and Scale preprocessing was chosen given the exceptionally high variability.</p>
+
+<pre><code>pargs = classe ~ .
+preProc = c("center","scale")
+ctrl &lt;- trainControl(method="repeatedcv",          # use repeated 10fold cross validation
+                 repeats=10,                          # do 10 repetitions of 10-fold cv
+                 number=10)
+</code></pre>
 
 <h3>
-<a id="rather-drive-stick" class="anchor" href="#rather-drive-stick" aria-hidden="true"><span class="octicon octicon-link"></span></a>Rather Drive Stick?</h3>
+<a id="algorithms" class="anchor" href="#algorithms" aria-hidden="true"><span class="octicon octicon-link"></span></a>Algorithms</h3>
 
-<p>If you prefer to not use the automatic generator, push a branch named <code>gh-pages</code> to your repository to create a page manually. In addition to supporting regular HTML content, GitHub Pages support Jekyll, a simple, blog aware static site generator written by our own Tom Preston-Werner. Jekyll makes it easy to create site-wide headers and footers without having to copy them across every page. It also offers intelligent blog support and other advanced templating features.</p>
+<p>Four Machine Learning Models were chosen.</p>
+
+<ul>
+<li>Random Forest Model (rf)</li>
+<li>Generalized Boosted Regression Model (gbm)</li>
+<li>Learning Vector Quantization Model (lvq)</li>
+<li>Support Vector Machine Model (svm)</li>
+</ul>
+
+<p>The performance metric for the comparison is Model Accuracy. From examining the boxplots of the sampling distributions for the three best models it is apparent that, in this case, the rf and gbm have the advantage.</p>
+
+<p><img src="http://rpubs.com/ebrucecfa/82645" alt="Machine Learning Model Comparison"></p>
+
+<p>The lvq Optimal Model Accuracy = 0.7386467 with SD =  0.02004137 in contrast. It was eliminated from further consideration.</p>
 
 <h3>
-<a id="authors-and-contributors" class="anchor" href="#authors-and-contributors" aria-hidden="true"><span class="octicon octicon-link"></span></a>Authors and Contributors</h3>
-
-<p>You can <a href="https://github.com/blog/821" class="user-mention">@mention</a> a GitHub username to generate a link to their profile. The resulting <code>&lt;a&gt;</code> element will link to the contributor's GitHub Profile. For example: In 2007, Chris Wanstrath (<a href="https://github.com/defunkt" class="user-mention">@defunkt</a>), PJ Hyett (<a href="https://github.com/pjhyett" class="user-mention">@pjhyett</a>), and Tom Preston-Werner (<a href="https://github.com/mojombo" class="user-mention">@mojombo</a>) founded GitHub.</p>
-
-<h3>
-<a id="support-or-contact" class="anchor" href="#support-or-contact" aria-hidden="true"><span class="octicon octicon-link"></span></a>Support or Contact</h3>
-
-<p>Having trouble with Pages? Check out the documentation at <a href="https://help.github.com/pages">https://help.github.com/pages</a> or contact <a href="mailto:support@github.com">support@github.com</a> and we’ll help you sort it out.</p>
+<a id="expected-out-of-sample-error" class="anchor" href="#expected-out-of-sample-error" aria-hidden="true"><span class="octicon octicon-link"></span></a>Expected Out of Sample Error</h3>
 
       <footer class="site-footer">
 
