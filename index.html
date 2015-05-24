@@ -34,14 +34,12 @@ perform the unilateral dumbbell biceps curl weight lifting exercise. </p>
 
 <p>This dependent variable is the "classe" variable in the training set. </p>
 
-<p>The project deliverables are this report describing how the model was built, how cross validation was used, what the expected out of sample error is, and why the choices for all the above were made. </p>
+<p>The project deliverables are this report describing how the model was built, how cross validation was used, what the expected out of sample error is, why the choices for all the above were made and a final prediction on the 20 test cases. </p>
 
 <h3>
 <a id="the-data" class="anchor" href="#the-data" aria-hidden="true"><span class="octicon octicon-link"></span></a>The Data</h3>
 
 <p>The data was sourced from <a href="http://groupware.les.inf.puc-rio.br/har">this site</a>.</p>
-
-<p>The below R commands and parameters were used.</p>
 
 <pre><code>train = read.csv("pml-training.csv", header=T, stringsAsFactors=F, na.strings = c("NA", "#DIV/0!"))
 test = read.csv("pml-testing.csv",header=T, stringsAsFactors=F, na.strings = c("NA", "#DIV/0!"))
@@ -57,14 +55,72 @@ test = read.csv("pml-testing.csv",header=T, stringsAsFactors=F, na.strings = c("
 <ul>
 <li>Statistical and summary measures were derived from other variables and therefore contained no additional explanatory value.</li>
 <li>Raw and cvtd timestamps contained no additional explanatory value since other variables measured acceleration and thus contained time element.</li>
-<li>new_window &amp; num_window have no explanatory value as new_window has zero variability once the statistical and summary measures were eliminated and num_window is merely an index counter identification value.</li>
+<li>new_window, num_window and other row indexes have no explanatory value as new_window has zero variability once the statistical and summary measures were eliminated and row indexes are merely index counter identification values.</li>
 </ul>
 
 <p>There were no missing or NA values after the above variables were eliminated so no additional data cleansing was required.</p>
 
 <p>The dependent variable 'classe' and independent variable 'user_name' were both converted to factor variables for ease of use with the caret library train function.</p>
 
+<pre><code>all$classe = as.factor(all$classe)
+all$user_name = as.factor(all$user_name)
+</code></pre>
+
 <p>The resulting 'train' data frame was 19622 obs of 55 variables. </p>
+
+<h3>
+<a id="feature-selection" class="anchor" href="#feature-selection" aria-hidden="true"><span class="octicon octicon-link"></span></a>Feature Selection</h3>
+
+<p>While it is best to err on over creation of features but first consider removing zero covariates.</p>
+
+<pre><code>nsv = nearZeroVar(train.training[,4:54], saveMetrics = TRUE)
+</code></pre>
+
+<p>There were no near zero covariates identified for removal.</p>
+
+<p>A Variable Importance exploratory analysis was run to gauge variable importance using a Random Forest model over a 20% split of the training data frame. The below plots illustrate the variable importance.</p>
+
+<pre><code>inVarImp = createDataPartition(y = train.training$classe, p = 0.2, list = F)
+varImpSub = train.training[inVarImp, ]
+varImpSub = subset(varImpSub[3:55])
+varImpRF = train(classe ~ ., data = varImpSub, method = "rf")
+
+varImpObj &lt;- varImp(varImpRF)
+plot(varImpObj, main = "Variable Importance of All Vars")
+plot(varImpObj, main = "Variable Importance of Top 25 Vars", top = 25)
+</code></pre>
+
+<p><a href="http://rpubs.com/ebrucecfa/82744">Variable Importance of All Vars</a>
+<a href="http://rpubs.com/ebrucecfa/82755">Variable Importance of Top 25 Vars</a></p>
+
+<p>The variable importance exploratory analysis showed that 20-25 variables had the dominant explanatory value.</p>
+
+<p>A final exploratory analysis to gauge likely best features based on high variability and select best pre-processing method was performed.</p>
+
+<pre><code>train.training.mean = sapply(train.training[,4:54],mean,na.rm=1)
+train.training.min = sapply(train.training[,4:54],min,na.rm=1)
+train.training.max = sapply(train.training[,4:54],max,na.rm=1)
+train.training.sd = sapply(train.training[,4:54],sd,na.rm=1)
+train.training.summarystats = data.frame(train.training.min, 
+                                     train.training.max, 
+                                     train.training.mean,
+                                     train.training.sd)
+# sort by sd
+train.training.summarystats = train.training.summarystats[order(-train.training.sd, train.training.mean ) , ]
+head(train.training.summarystats)
+</code></pre>
+
+<p>feature                  train.training.min train.training.max train.training.mean train.training.sd
+magnet_forearm_y                -896               1480            385.3510          507.9857
+magnet_arm_x                    -580                780            190.8281          444.7440
+magnet_forearm_z                -973               1090            392.8455          371.8815
+magnet_forearm_x               -1280                663           -312.5898          347.5065
+magnet_dumbbell_x               -639                584           -330.0082          338.4216
+magnet_arm_z                    -595                694            306.6091          326.0821</p>
+
+<p>As shown above, the final exploratory analysis showed a significant amount of variables exhibited exceptionally high variability.</p>
+
+<p>It was thus decided to use all remaining 54 variables.</p>
 
 <h3>
 <a id="cross-validation" class="anchor" href="#cross-validation" aria-hidden="true"><span class="octicon octicon-link"></span></a>Cross Validation</h3>
@@ -84,38 +140,7 @@ train.testing = train.test[inTest,]
 train.validate = train.test[-inTest,]
 </code></pre>
 
-<h2>
-<a id="feature-selection" class="anchor" href="#feature-selection" aria-hidden="true"><span class="octicon octicon-link"></span></a>Feature Selection</h2>
-
-<p>While it is best to err on over creation of features but first consider removing zero covariates.</p>
-
-<pre><code>nsv = nearZeroVar(train.training[,4:54], saveMetrics = TRUE)
-</code></pre>
-
-<p>There were no near zero covariates identified for removal.</p>
-
-<p>An exploratory analysis was run to gauge variable importance using a Random Forest model over a 20% split of the training data frame. The below plots illustrate the variable importance.</p>
-
-<p><img src="http://rpubs.com/ebrucecfa/82744" alt="Variable Importance of All Vars">
-<img src="http://rpubs.com/ebrucecfa/82755" alt="Variable Importance of Top 25 Vars"></p>
-
-<p>The variable importance exploratory analysis showed that 20-25 variables had the dominant explanatory value.</p>
-
-<p>A final exploratory analysis to gauge likely best features and select best pre-processing method was performed.</p>
-
-<pre><code>              train.training.min train.training.max train.training.mean train.training.sd
-</code></pre>
-
-<p>magnet_forearm_y                -896               1480            385.3510          507.9857
-magnet_arm_x                    -580                780            190.8281          444.7440
-magnet_forearm_z                -973               1090            392.8455          371.8815
-magnet_forearm_x               -1280                663           -312.5898          347.5065
-magnet_dumbbell_x               -639                584           -330.0082          338.4216
-magnet_arm_z                    -595                694            306.6091          326.0821</p>
-
-<p>As shown above, the final exploratory analysis showed a significant amount of variables exhibited exceptionally high variability.</p>
-
-<p>It was thus decided to use all remaining 54 variables and perform repeated 10-fold cross validation with 10 repetitions. This would result in less bias, but more variance in prediction. A Center and Scale preprocessing was chosen given the exceptionally high variability.</p>
+<p>It was decided to perform repeated 10-fold cross validation with 10 repetitions. This would result in less bias, but more variance in prediction. A Center and Scale preprocessing was chosen given the exceptionally high variability exhibited in the chosen features.</p>
 
 <h3>
 <a id="algorithms" class="anchor" href="#algorithms" aria-hidden="true"><span class="octicon octicon-link"></span></a>Algorithms</h3>
@@ -131,7 +156,7 @@ magnet_arm_z                    -595                694            306.6091     
 
 <p>The performance metric for the comparison is Model Accuracy. From examining the boxplots of the sampling distributions for the three best models it is apparent that, in this case, the rf and gbm have the advantage.</p>
 
-<p><a href="http://rpubs.com/ebrucecfa/82645">Machine Learning Model Comparison</a></p>
+<p><a href="http://rpubs.com/ebrucecfa/82645">Machine Learning Model Comparison Boxplot</a></p>
 
 <p>The lvq Optimal Model Accuracy = 0.7386467 with SD =  0.02004137 in contrast. It was eliminated from further consideration.</p>
 
