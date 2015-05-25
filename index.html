@@ -60,7 +60,7 @@ test = read.csv("pml-testing.csv",header=T, stringsAsFactors=F, na.strings = c("
 
 <p>There were no missing or NA values after the above variables were eliminated so no additional data cleansing was required.</p>
 
-<p>The dependent variable 'classe' and independent variable 'user_name' were both converted to factor variables for ease of use with the caret library train function.</p>
+<p>The dependent variable 'classe' and independent variable 'user_name' were both converted to factor variables for ease of use with the caret library train function. Random Forest method requires the dependent variable be stored as a factor variable when training a model for classification.</p>
 
 <pre><code>all$classe = as.factor(all$classe)
 all$user_name = as.factor(all$user_name)
